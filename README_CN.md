@@ -64,4 +64,6 @@ Latex Table Miner 是一个强大的 Latex 表格提取与管理工具，旨在�
 
 如果这个工具帮到了你，请给我一个 Star ⭐，这对我是很大的鼓励！
 
-[![Star History Chart](https://api.star-history.com/svg?repos=DianxingShi/LatexTableMiner&type=Date)](https://star-history.com/#DianxingShi/LatexTableMiner&Date)
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DianxingShi/Latex-Table-Miner&type=date&legend=top-left)](https://www.star-history.com/#DianxingShi/Latex-Table-Miner&type=date&legend=top-left)
