@@ -9,7 +9,7 @@
 
 **Latex Table Miner** 是一个强大的 Latex 表格提取与管理工具，旨在帮助研究人员和开发者高效地从论文中提取、管理和复用 Latex 表格。
 
-![GitHub stars](https://img.shields.io/github/stars/DianxingShi/LatexTableMiner?style=social)
+![GitHub stars](https://img.shields.io/github/stars/DianxingShi/Latex-Table-Miner?style=social)
 
 ## 📦 功能介绍
 
