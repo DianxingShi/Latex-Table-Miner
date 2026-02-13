@@ -21,6 +21,11 @@ This tool provides the following core functionalities:
 - **Notes & Remarks**: Add custom notes to extracted tables for easy retrieval later.
 - **Source & Dependency Copying**: One-click copying of the table's LaTeX source code and necessary package dependencies.
 
+## 📖 Usage Instructions
+
+1.  **Executable**: Download `LTMiner.exe`, open it, select a default storage folder, and set the API to start using it.
+2.  **Source Code**: Download `main.py` and `tectonic.exe`, and install the required dependencies for `main.py`. Then enter `python main.py` in bash to start. Follow the same steps as above to use.
+
 ## ⚙️ How It Works (Core Principles)
 
 We use a multi-stage process to ensure accurate extraction:

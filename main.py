@@ -14,13 +14,13 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 import fitz  # PyMuPDF
 
-# --- 全局配置 ---
-# --- 全局配置 ---
+# --- Global Configuration ---
+
 ctk.set_appearance_mode("Light")
 ctk.set_default_color_theme("blue")
 
 def get_resource_path(relative_path):
-    """获取资源绝对路径，兼容开发环境和打包EXE环境"""
+    """Get absolute resource path, compatible with dev env and PyInstaller."""
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
@@ -28,7 +28,7 @@ def get_resource_path(relative_path):
 TECTONIC_PATH = get_resource_path("tectonic.exe")
 CONFIG_FILE = "app_config.json"
 
-# --- 1. 数据存储管理器 ---
+# --- 1. Data Manager ---
 class DataManager:
     def __init__(self):
         self.conn = None
@@ -40,7 +40,7 @@ class DataManager:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, 'r') as f:
                 return json.load(f)
-        # 默认配置，storage_path 默认为空，强制用户选择
+        # Default config, storage_path empty by default to force user selection
         return {
             "storage_path": "", 
             "api_key": "", 
@@ -59,7 +59,7 @@ class DataManager:
     def init_db(self):
         root = self.config["storage_path"]
         if not root: 
-            return # 未设置路径时不初始化DB
+            return # Do not init DB if path not set
             
         if not os.path.exists(root): os.makedirs(root)
         
@@ -70,7 +70,7 @@ class DataManager:
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.cursor = self.conn.cursor()
         
-        # 建表：包含 packages 字段
+        # Create table: includes packages field
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS tables (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +82,7 @@ class DataManager:
                 created_at TEXT
             )
         ''')
-        # 自动迁移：防止旧数据库报错
+        # Auto migration: prevent errors with old DB
         try:
             self.cursor.execute("SELECT packages FROM tables LIMIT 1")
         except sqlite3.OperationalError:
@@ -123,12 +123,12 @@ class DataManager:
         self.cursor.execute("DELETE FROM tables WHERE id = ?", (table_id,))
         self.conn.commit()
 
-# --- 2. 核心逻辑 ---
+# --- 2. Core Logic ---
 class CoreLogic:
     def fetch_arxiv_source(self, arxiv_id):
         url = f"https://arxiv.org/e-print/{arxiv_id}"
         response = requests.get(url)
-        if response.status_code != 200: raise Exception("无法下载 arXiv 源码")
+        if response.status_code != 200: raise Exception("Failed to download arXiv source")
         
         source_code = ""
         try:
@@ -143,9 +143,9 @@ class CoreLogic:
         return source_code
 
     def pre_scan_tables(self, source_code):
-        """用正则预扫描源码，只查找原生 Table 环境（table, table*, sidewaystable, longtable）"""
+        """Pre-scan source code with regex, looking only for native Table environments (table, table*, sidewaystable, longtable)"""
         import re
-        # 只匹配原生表格包裹环境，不匹配嵌套在 figure 等内部的独立 tabular
+        # Only match native table wrapper environments, not standalone tabulars nested inside figure etc.
         env_pattern = re.compile(
             r'\\begin\{(table\*?|sidewaystable\*?|longtable\*?|supertabular\*?)\}'
         )
@@ -157,7 +157,7 @@ class CoreLogic:
             m = env_pattern.search(line)
             if m:
                 env_name = m.group(1)
-                # 向后搜索 caption 和 label
+                # Search forward for caption and label
                 caption = ""
                 label = ""
                 search_range = '\n'.join(lines[line_no-1:min(line_no+40, len(lines))])
@@ -182,11 +182,11 @@ class CoreLogic:
         if clean_mode:
             cleaning_instruction = f"Replace all specific numerical values in the table cells with '{clean_char}', but strictly preserve the headers, captions, and structural integrity."
 
-        # === 正则预扫描 ===
+        # === Regex Pre-scan ===
         scan_results = self.pre_scan_tables(source_code)
         scan_count = len(scan_results)
         
-        # 构建扫描报告
+        # Build scan report
         scan_report = f"Pre-scan found {scan_count} table(s) in the source:\n"
         for i, r in enumerate(scan_results, 1):
             info = f"  #{i}: \\begin{{{r['env']}}} at line {r['line']}"
@@ -269,7 +269,7 @@ Return a JSON object:
                     text_res = text_res.split("```")[1].split("```")[0]
                 tables = json.loads(text_res).get('tables', [])
             except ImportError:
-                 raise Exception("请安装 google-generativeai 库或使用 Compatible 模式")
+                 raise Exception("Please install google-generativeai library or use Compatible mode")
             except Exception as e:
                 raise Exception(f"Google API Error: {str(e)}")
 
@@ -300,35 +300,35 @@ Return a JSON object:
                 print(f"JSON Parse Error. Raw Content:\n{content}")
                 raise Exception("Model returned invalid JSON. Check console for details.")
 
-        # === 提取后验证 ===
+        # === Post-extraction Verification ===
         extracted_count = len(tables)
         if extracted_count < scan_count:
-            print(f"[WARN] ⚠️ LLM 提取了 {extracted_count} 个表格，但预扫描发现了 {scan_count} 个！可能有遗漏。")
+            print(f"[WARN] ⚠️ LLM extracted {extracted_count} tables, but pre-scan found {scan_count}! Missing tables possible.")
         elif extracted_count > scan_count:
-            print(f"[INFO] LLM 提取了 {extracted_count} 个表格（预扫描 {scan_count} 个），可能包含嵌套/拆分表格。")
+            print(f"[INFO] LLM extracted {extracted_count} tables (pre-scan {scan_count}), may contain nested/split tables.")
         else:
-            print(f"[INFO] ✅ LLM 提取数量 ({extracted_count}) 与预扫描 ({scan_count}) 一致。")
+            print(f"[INFO] ✅ LLM extraction count ({extracted_count}) matches pre-scan ({scan_count}).")
         
         return tables
 
-    # Tectonic 不支持或 standalone 模式下不需要的宏包黑名单
+    # Blacklist of packages not supported by Tectonic or not needed in standalone mode
     PACKAGE_BLACKLIST = {
-        # Tectonic 兼容性问题
+        # Tectonic compatibility issues
         'transparent', 'fontspec', 'unicode-math',
-        # standalone 不需要的页面/文档级宏包
+        # Page/document level packages not needed for standalone
         'geometry', 'fancyhdr', 'titlesec', 'setspace', 'fullpage', 'a4wide',
         'parskip', 'tocbibind', 'tocloft', 'appendix', 'abstract', 'authblk',
         'footmisc', 'fancyvrb',
-        # 参考文献 (standalone 无法处理)
+        # Bibliography (standalone cannot handle)
         'natbib', 'biblatex', 'cite',
-        # 浮动体和标题 (standalone 无浮动体)
+        # Floats and captions (standalone has no floats)
         'caption', 'subcaption', 'float', 'placeins', 'wrapfig', 'subfig',
-        # 算法/代码 (与表格无关)
+        # Algorithms/Code (irrelevant to tables)
         'algorithm', 'algorithmic', 'algpseudocode', 'algorithm2e',
         'listings', 'minted', 'verbatim',
-        # 超链接 (standalone 不需要)
+        # Hyperlinks (not needed for standalone)
         'hyperref', 'cleveref', 'nameref',
-        # 其他不相关
+        # Others irrelevant
         'inputenc', 'fontenc', 'lmodern', 'times', 'palatino',
         'babel', 'polyglossia', 'csquotes',
         'enumitem', 'paralist',
@@ -338,12 +338,12 @@ Return a JSON object:
     }
 
     def extract_source_preamble(self, source_code):
-        """从原始 LaTeX 源码中提取可复用的 preamble 元素"""
+        """Extract reusable preamble elements from original LaTeX source"""
         import re
         packages = []   # (full_match, pkg_name, options)
-        definitions = [] # 颜色定义、自定义命令等
+        definitions = [] # Color definitions, custom commands, etc.
 
-        # 1. 提取 \usepackage（支持多包如 \usepackage{a,b,c}）
+        # 1. Extract \usepackage (supports multi-package like \usepackage{a,b,c})
         for m in re.finditer(r'\\usepackage(\[[^\]]*\])?\{([^}]+)\}', source_code):
             options = m.group(1) or ""
             pkg_str = m.group(2)
@@ -352,15 +352,15 @@ Return a JSON object:
                 if pkg and pkg not in self.PACKAGE_BLACKLIST:
                     packages.append((pkg, options))
 
-        # 2. 提取 \definecolor
+        # 2. Extract \definecolor
         for m in re.finditer(r'\\definecolor\{[^}]+\}\{[^}]+\}\{[^}]+\}', source_code):
             definitions.append(m.group(0))
 
-        # 3. 提取 \colorlet
+        # 3. Extract \colorlet
         for m in re.finditer(r'\\colorlet\{[^}]+\}\{[^}]+\}', source_code):
             definitions.append(m.group(0))
 
-        # 4. 提取简单的 \newcommand / \renewcommand / \providecommand（单行）
+        # 4. Extract simple \newcommand / \renewcommand / \providecommand (single line)
         for m in re.finditer(
             r'\\(?:newcommand|renewcommand|providecommand)\*?\{\\[a-zA-Z]+\}'
             r'(?:\[\d+\](?:\[[^\]]*\])?)?'
@@ -369,11 +369,11 @@ Return a JSON object:
         ):
             definitions.append(m.group(0))
 
-        # 5. 提取 \DeclareMathOperator
+        # 5. Extract \DeclareMathOperator
         for m in re.finditer(r'\\DeclareMathOperator\*?\{\\[a-zA-Z]+\}\{[^}]+\}', source_code):
             definitions.append(m.group(0))
 
-        # 6. 提取简单的 \def\cmd{...}
+        # 6. Extract simple \def\cmd{...}
         for m in re.finditer(r'\\def\\[a-zA-Z]+\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', source_code):
             definitions.append(m.group(0))
 
@@ -382,16 +382,16 @@ Return a JSON object:
     def render_latex(self, latex_code, source_packages=None, source_definitions=None, api_config=None, original_source=None, status_cb=None):
         import re
         
-        # === Step 1: 彻底清理模型输出，只保留 document body ===
-        # 提取 \begin{document}...\end{document} 之间的内容
+        # === Step 1: Thoroughly clean model output, keep only document body ===
+        # Extract content between \begin{document}...\end{document}
         body_match = re.search(r'\\begin\{document\}(.*?)\\end\{document\}', latex_code, re.DOTALL)
         if body_match:
             doc_body = body_match.group(1)
         else:
-            # 没有 document 环境，整段就是 body
+            # No document environment, entire segment is body
             doc_body = re.sub(r'\\documentclass(\[.*?\])?\{.*?\}\s*', '', latex_code)
         
-        # === Step 2: 构建宏包列表（必备包 + 源码包，去重）===
+        # === Step 2: Build package list (essential + source packages, deduplicated) ===
         essential = [
             ('[table]', 'xcolor'),
             ('', 'booktabs'),
@@ -423,7 +423,7 @@ Return a JSON object:
             seen_pkgs.add(pkg_name)
             pkg_entries.append((opts, pkg_name))
         
-        # 加入源码的额外包（已过滤黑名单）
+        # Add extra packages from source (blacklist filtered)
         if source_packages:
             for pkg_name, opts in source_packages:
                 if pkg_name not in seen_pkgs and pkg_name not in self.PACKAGE_BLACKLIST:
@@ -432,12 +432,12 @@ Return a JSON object:
                     seen_pkgs.add(pkg_name)
                     pkg_entries.append((opts, pkg_name))
         
-        # === Step 3: 源码中的颜色定义和自定义命令 ===
+        # === Step 3: Color definitions and custom commands from source ===
         def_lines = []
         if source_definitions:
             def_lines = list(dict.fromkeys(source_definitions))
         
-        # === Step 4: 扫描 body 中的未知颜色，生成兜底定义 ===
+        # === Step 4: Scan for unknown colors in body, generate fallback definitions ===
         standard_colors = {
             'red', 'green', 'blue', 'cyan', 'magenta', 'yellow', 
             'black', 'white', 'darkgray', 'gray', 'lightgray',
@@ -456,7 +456,7 @@ Return a JSON object:
                 def_lines.append(f"\\definecolor{{{cname}}}{{HTML}}{{CCCCCC}}")
                 already_defined.add(cname)
         
-        # === Step 5: 命令 fallback ===
+        # === Step 5: Command fallback ===
         fallback_cmds = [
             "\\providecommand{\\transparent}[1]{}",
             "\\providecommand{\\cite}[1]{[#1]}",
@@ -470,7 +470,7 @@ Return a JSON object:
             "\\providecommand{\\xmark}{\\ding{55}}",
         ]
         
-        # === Step 6: 自动重试编译（遇到 File not found 自动剥离该包）===
+        # === Step 6: Auto-retry compilation (auto-strip package on File not found) ===
         max_retries = 10
         local_blacklist = set()
         last_full_tex = ""
@@ -478,13 +478,13 @@ Return a JSON object:
         _sc = status_cb or (lambda msg: None)  # status callback shorthand
         
         for attempt in range(max_retries + 1):
-            # 过滤掉本轮被 ban 的包
+            # Filter out packages banned in this round
             pkg_lines = []
             for opts, pkg_name in pkg_entries:
                 if pkg_name not in local_blacklist:
                     pkg_lines.append(f"\\usepackage{opts}{{{pkg_name}}}")
             
-            # 组装完整 .tex 文件
+            # Assemble complete .tex file
             full_tex = (
                 "\\documentclass[preview]{standalone}\n"
                 + "\n".join(pkg_lines) + "\n"
@@ -500,71 +500,71 @@ Return a JSON object:
             if success:
                 method = "AUTO" if local_blacklist else "DIRECT"
                 if local_blacklist:
-                    print(f"[AUTO-FIX] 自动移除了不可用的包: {local_blacklist}")
+                    print(f"[AUTO-FIX] Automatically removed unusable packages: {local_blacklist}")
                 return img_path, method
             
             last_full_tex = full_tex
             last_error_msg = error_msg
             
-            # 匹配 "File `xxx.sty' not found" 或 "File `xxx.cls' not found"
+            # Match "File `xxx.sty' not found" or "File `xxx.cls' not found"
             not_found = re.search(r"File `([^']+)\.(sty|cls)' not found", error_msg)
             if not_found and attempt < max_retries:
                 missing = not_found.group(1)
                 local_blacklist.add(missing)
                 _sc(f"🔧 Auto-fix: removing '{missing}'")
-                print(f"[AUTO-FIX] 包 '{missing}' 不可用，自动移除并重试 (attempt {attempt+1}/{max_retries})")
+                print(f"[AUTO-FIX] Package '{missing}' unusable, auto-removing and retrying (attempt {attempt+1}/{max_retries})")
                 import time; time.sleep(0.01)
                 continue
             
-            break  # 非 File-not-found 错误 → 跳出进入 LLM 修复阶段
+            break  # Non-File-not-found error -> break to enter LLM fix stage
         
-        # === Step 7: LLM 辅助修复（最多 3 次）===
+        # === Step 7: LLM assisted fix (max 3 times) ===
         if api_config and original_source:
-            print(f"[LLM-FIX] 自动重试无法修复，启动 LLM 辅助修复...")
+            print(f"[LLM-FIX] Auto-retry failed, starting LLM assisted fix...")
             current_tex = last_full_tex
             current_error = last_error_msg
             
-            for llm_attempt in range(1, 4):  # 最多 3 次
+            for llm_attempt in range(1, 4):  # Max 3 times
                 _sc(f"🤖 LLM Fix ({llm_attempt}/3)...")
-                print(f"[LLM-FIX] 第 {llm_attempt}/3 次 LLM 修复尝试...")
+                print(f"[LLM-FIX] LLM fix attempt {llm_attempt}/3...")
                 try:
                     fixed_tex = self.llm_fix_latex(
                         api_config, original_source, current_tex, current_error
                     )
                     if not fixed_tex:
-                        print(f"[LLM-FIX] LLM 返回空内容，跳过")
+                        print(f"[LLM-FIX] LLM returned empty content, skipping")
                         break
                     
                     _sc(f"⚙️ Recompiling (LLM fix {llm_attempt})...")
                     success, img_path, error_msg = self._compile_tex(fixed_tex)
                     if success:
-                        print(f"[LLM-FIX] ✅ 第 {llm_attempt} 次 LLM 修复成功！")
+                        print(f"[LLM-FIX] ✅ LLM fix attempt {llm_attempt} successful!")
                         return img_path, f"LLM-{llm_attempt}"
                     
-                    print(f"[LLM-FIX] 第 {llm_attempt} 次修复后仍编译失败")
+                    print(f"[LLM-FIX] Compilation still failed after LLM fix attempt {llm_attempt}")
                     current_tex = fixed_tex
                     current_error = error_msg
                     
                 except Exception as llm_err:
-                    print(f"[LLM-FIX] LLM 调用出错: {str(llm_err)[:200]}")
+                    print(f"[LLM-FIX] LLM call error: {str(llm_err)[:200]}")
                     break
             
-            print(f"[LLM-FIX] ❌ 3 次 LLM 修复均失败，放弃此表格")
+            print(f"[LLM-FIX] ❌ All 3 LLM fix attempts failed, abandoning this table")
         
-        # 最终失败 → 打印调试信息并抛出异常
+        # Final failure -> print debug info and raise exception
         lines_list = last_full_tex.split('\n')
         print(f"\n{'='*60}")
-        print(f"[DEBUG] 最终编译失败的 LaTeX 源码:")
+        print(f"[DEBUG] Final failed LaTeX source:")
         print(f"{'='*60}")
         for i, line in enumerate(lines_list, 1):
             print(f"  {i:3d}: {line}")
         print(f"{'='*60}")
         print(f"[DEBUG] 最终 Tectonic Error: {last_error_msg[:500]}")
         print(f"{'='*60}\n")
-        raise Exception(f"编译失败: {last_error_msg[:500]}...")
+        raise Exception(f"Compilation failed: {last_error_msg[:500]}...")
 
     def _compile_tex(self, full_tex):
-        """编译 LaTeX 代码，返回 (success, img_path_or_None, error_msg)"""
+        """Compile LaTeX code, return (success, img_path_or_None, error_msg)"""
         temp_id = datetime.datetime.now().strftime("%f")
         tex_file = f"temp_{temp_id}.tex"
         pdf_file = f"temp_{temp_id}.pdf"
@@ -595,7 +595,7 @@ Return a JSON object:
         return False, None, error_msg
 
     def llm_fix_latex(self, api_config, original_source, failed_tex, error_msg):
-        """调用 LLM 修复编译失败的 LaTeX 代码"""
+        """Call LLM to fix failed LaTeX code"""
         fix_prompt = """You are a LaTeX compilation error fixer.
 
 Given:
@@ -654,7 +654,7 @@ Please produce the corrected standalone .tex file:"""
             )
             result_text = response.choices[0].message.content
 
-        # 清理可能的 markdown 代码块包装
+        # Clean possible markdown code block wrapper
         if "```latex" in result_text:
             result_text = result_text.split("```latex")[1].split("```")[0]
         elif "```tex" in result_text:
@@ -666,15 +666,15 @@ Please produce the corrected standalone .tex file:"""
         
         result_text = result_text.strip()
         
-        # 验证返回内容包含基本 LaTeX 结构
+        # Verify returned content contains basic LaTeX structure
         if "\\begin{document}" not in result_text or "\\end{document}" not in result_text:
-            print(f"[LLM-FIX] LLM 返回内容不完整，缺少 document 环境")
+            print(f"[LLM-FIX] LLM returned incomplete content, missing document environment")
             return None
         
-        print(f"[LLM-FIX] LLM 返回了 {len(result_text)} 字符的修复代码")
+        print(f"[LLM-FIX] LLM returned {len(result_text)} chars of fixed code")
         return result_text
 
-# --- 3. UI 界面 ---
+# --- 3. UI Interface ---
 import webbrowser
 TRANSLATIONS = {
     "CN": {
@@ -762,8 +762,8 @@ class App(ctk.CTk):
         self.data_manager = DataManager()
         self.logic = CoreLogic()
         self.current_table_id = None
-        self.library_data = []  # 存储当前 library 数据用于翻页
-        self.current_index = -1  # 当前在 library_data 中的索引
+        self.library_data = []  # Store current library data for pagination
+        self.current_index = -1  # Current index in library_data
         self.setup_ui()
         self.refresh_library()
 
@@ -771,15 +771,15 @@ class App(ctk.CTk):
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         
-        # 字体颜色配置 (增强对比度)
-        self.text_color_primary = "#1A1A1A"  # 深黑
-        self.text_color_secondary = "#555555" # 深灰
+        # Font color config (enhance contrast)
+        self.text_color_primary = "#1A1A1A"  # Dark black
+        self.text_color_secondary = "#555555" # Dark gray
 
-        # 左侧 Sidebar
+        # Left Sidebar
         self.sidebar = ctk.CTkFrame(self, width=240, corner_radius=0)
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         
-        # 语言切换
+        # Language Switch
         self.lang_switch = ctk.CTkSegmentedButton(self.sidebar, values=["CN", "EN"], command=self.change_language)
         self.lang_switch.set("CN")
         self.lang_switch.pack(pady=(20, 10), padx=15, fill="x")
@@ -787,7 +787,7 @@ class App(ctk.CTk):
         self.logo_label = ctk.CTkLabel(self.sidebar, text="LT Miner", font=("Roboto Medium", 22), text_color=self.text_color_primary)
         self.logo_label.pack(pady=(10, 20))
         
-        # --- API 设置 ---
+        # --- API Settings ---
         self.api_group_label = ctk.CTkLabel(self.sidebar, text="API Settings", font=("Arial", 14, "bold"), anchor="w", text_color=self.text_color_primary)
         self.api_group_label.pack(padx=15, fill="x")
         
@@ -811,7 +811,7 @@ class App(ctk.CTk):
         self.path_btn = ctk.CTkButton(self.sidebar, text="Path", command=self.change_path, fg_color="transparent", border_width=1, text_color=self.text_color_primary)
         self.path_btn.pack(pady=10, padx=15, fill="x")
 
-        # --- 任务设置 ---
+        # --- Task Settings ---
         self.task_group_label = ctk.CTkLabel(self.sidebar, text="New Task", font=("Arial", 14, "bold"), text_color=self.text_color_primary)
         self.task_group_label.pack(pady=(20, 5), anchor="w", padx=15)
         
@@ -821,7 +821,7 @@ class App(ctk.CTk):
         self.import_local_btn = ctk.CTkButton(self.sidebar, text="Import Local", command=self.import_local, fg_color="#5F6F81")
         self.import_local_btn.pack(pady=(0, 5), padx=15, fill="x")
         
-        # 数据脱敏模块
+        # Data Desensitization Module
         self.clean_mode_var = ctk.BooleanVar(value=False)
         self.clean_mode_checkbox = ctk.CTkCheckBox(self.sidebar, text="Clean Mode", variable=self.clean_mode_var, text_color=self.text_color_primary)
         self.clean_mode_checkbox.pack(pady=(10, 2), padx=15, anchor="w")
@@ -841,7 +841,7 @@ class App(ctk.CTk):
         self.copyright_label.pack(side="bottom", pady=10)
         self.copyright_label.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/DianxingShi"))
 
-        # 右侧 Tabview
+        # Right Tabview
         self.tabview = ctk.CTkTabview(self, text_color=self.text_color_primary)
         self.tabview.grid(row=0, column=1, sticky="nsew", padx=15, pady=10)
         self.tabview.add("Library")
@@ -850,7 +850,7 @@ class App(ctk.CTk):
         self.library_frame = ctk.CTkScrollableFrame(self.tabview.tab("Library"))
         self.library_frame.pack(fill="both", expand=True)
         
-        # Inspector 界面
+        # Inspector Interface
         self.inspector = ctk.CTkFrame(self.tabview.tab("Inspector"), fg_color="transparent")
         self.inspector.pack(fill="both", expand=True)
         
@@ -862,7 +862,7 @@ class App(ctk.CTk):
         self.insp_right = ctk.CTkScrollableFrame(self.inspector, width=420)
         self.insp_right.pack(side="right", fill="y", padx=5, pady=5)
         
-        # 依赖包区域
+        # Packages Area
         self.pkg_label = ctk.CTkLabel(self.insp_right, text="Packages", font=("Arial", 14, "bold"), text_color=self.text_color_primary)
         self.pkg_label.pack(anchor="w", pady=(10,5))
         
@@ -885,17 +885,17 @@ class App(ctk.CTk):
         self.save_note_btn = ctk.CTkButton(self.insp_right, text="Save", command=self.save_current_note)
         self.save_note_btn.pack(fill="x", pady=10)
 
-        # 快捷键提示
+        # Shortcut Hint
         self.arrow_hint_label = ctk.CTkLabel(self.insp_right, text="", text_color="#888888", font=("Arial", 11), wraplength=380, justify="center")
         self.arrow_hint_label.pack(pady=(5, 10))
 
         self.current_packages_str = ""
         
-        # 绑定方向键
+        # Bind Arrow Keys
         self.bind("<Up>", lambda e: self.navigate_inspector(-1))
         self.bind("<Down>", lambda e: self.navigate_inspector(1))
         
-        # === LED 状态栏 ===
+        # === LED Status Bar ===
         self.status_frame = ctk.CTkFrame(self, height=28, width=420, corner_radius=14, fg_color="#e8ecf1")
         self.status_frame.place(relx=0.5, rely=1.0, anchor="s", y=-6)
         self.status_frame.grid_propagate(False)
@@ -915,10 +915,10 @@ class App(ctk.CTk):
         self._blink_state = True
         self._led_bg = "#e8ecf1"
         
-        self.update_language("CN") # 初始化语言
+        self.update_language("CN") # Initialize language
 
     def set_status(self, msg, active=True):
-        """线程安全的 LED 状态更新"""
+        """Thread-safe LED status update"""
         def _update():
             self.status_label.configure(text=msg)
             if active:
@@ -1034,12 +1034,12 @@ class App(ctk.CTk):
                 messagebox.showerror("Error", f"Read failed: {e}")
 
     def run_extraction(self, mode="arxiv", data=None):
-        # 检查是否设置了存储路径
+        # Check if storage path is set
         if not self.data_manager.config.get("storage_path"):
             self.after(0, lambda: messagebox.showwarning(self.t["title"], self.t["warn_no_path"]))
-            # 尝试让用户选择
+            # Try to let user select
             self.after(0, self.change_path)
-            # 无论选择与否，本次都不继续，让用户重新点击
+            # Whether selected or not, do not continue this time, let user click again
             return
 
         api_key = self.api_input.get()
@@ -1086,16 +1086,16 @@ class App(ctk.CTk):
                 clean_mode=self.clean_mode_var.get(),
                 clean_char=clean_char
             )
-            print(f"\n[INFO] LLM 初始提取了 {len(tables)} 个表格")
+            print(f"\n[INFO] LLM initially extracted {len(tables)} tables")
             self.set_status(f"📋 Found {len(tables)} tables, preparing preamble...")
-            # 从原始源码中提取 preamble（宏包+定义）
+            # Extract preamble (packages + definitions) from original source
             src_pkgs, src_defs = self.logic.extract_source_preamble(source)
             
             success_count = 0
             fail_count = 0
             total = len(tables)
-            results = []  # 记录每个表格的结果
-            # 构建 API 配置用于 LLM 修复
+            results = []  # Record result for each table
+            # Build API config for LLM fix
             api_cfg = {
                 'api_key': api_key,
                 'base_url': base_url,
@@ -1123,14 +1123,14 @@ class App(ctk.CTk):
                     self.set_status(f"❌ Table {idx}/{total} failed")
                     print(f"[WARN] Table {idx} failed: {str(render_err)[:200]}")
             
-            # 打印清晰的摘要日志
+            # Print clear summary log
             print(f"\n{'='*50}")
-            print(f"  提取摘要: 初始提取 {total} 个表格")
+            print(f"  Extraction Summary: Initially extracted {total} tables")
             print(f"{'='*50}")
             for r_idx, r_status, r_method in results:
                 print(f"  Table {r_idx:>2}/{total}  {r_status}  {r_method}")
             print(f"{'='*50}")
-            print(f"  结果: {success_count} 成功, {fail_count} 失败")
+            print(f"  Result: {success_count} success, {fail_count} failed")
             print(f"{'='*50}\n")
             
             self.after(0, self.refresh_library)
@@ -1181,7 +1181,7 @@ class App(ctk.CTk):
         self.current_table_id = tid
         self.current_packages_str = pkgs
         
-        # 更新当前索引
+        # Update current index
         for i, r in enumerate(self.library_data):
             if r[0] == tid:
                 self.current_index = i
@@ -1211,10 +1211,10 @@ class App(ctk.CTk):
         self.tabview.set("Inspector")
 
     def navigate_inspector(self, direction):
-        """方向键翻页: direction=-1 上一个, direction=1 下一个"""
+        """Arrow key pagination: direction=-1 prev, direction=1 next"""
         if not self.library_data or self.current_index < 0:
             return
-        # 仅在 Inspector 标签页激活时生效
+        # Only active when Inspector tab is active
         try:
             if self.tabview.get() != "Inspector":
                 return
