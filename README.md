@@ -64,4 +64,8 @@ To better use this tool, users should have some **basic knowledge of LaTeX**.
 
 If this tool helps you, please give me a **Star** ⭐! It encourages me a lot.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=DianxingShi/LatexTableMiner&type=Date)](https://star-history.com/#DianxingShi/LatexTableMiner&Date)
+## Star History
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DianxingShi/Latex-Table-Miner&type=date&legend=top-left)](https://www.star-history.com/#DianxingShi/Latex-Table-Miner&type=date&legend=top-left)
