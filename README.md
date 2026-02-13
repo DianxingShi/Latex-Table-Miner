@@ -5,7 +5,7 @@
 [English](README.md) | [简体中文](README_CN.md)
 
 </div>
-
+![pic](assets/LatexTableMiner.png)
 **Latex Table Miner** is a powerful tool for extracting and managing LaTeX tables, designed to help researchers and developers efficiently extract, organize, and reuse tables from academic papers.
 
 ![GitHub stars](https://img.shields.io/github/stars/YourUsername/LatexTableMiner?style=social)
